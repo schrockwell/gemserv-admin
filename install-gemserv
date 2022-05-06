@@ -1,0 +1,27 @@
+#! /usr/bin/env ruby
+
+require_relative 'lib/common'
+
+gemserv_version = 'v0.6.6'
+archive_folder = "gemserv-#{gemserv_version}-linux-x86_64"
+archive_filename = "#{archive_folder}.tar.gz"
+release_url = "https://git.sr.ht/~int80h/gemserv/refs/download/#{gemserv_version}/#{archive_filename}"
+
+unless `whoami`.strip == 'root'
+    puts 'Must be run as root'
+    exit 1
+end
+
+run_all [
+    { may: 'adduser --disabled-password --shell /bin/bash --gecos "gemserv" gemserv' },
+    { must: 'usermod -aG sudo gemserv' },
+    { must: "wget '#{release_url}' -O #{archive_filename}" },
+    { must: "tar xfvz '#{archive_filename}'" },
+    { must: "mv #{archive_folder}/gemserv /usr/local/bin" },
+    { must: "cp etc/gemserv.conf /usr/local/etc/gemserv.conf" },
+    { must: "cp etc/gemserv.service /etc/systemd/system" },
+    { must: "rm '#{archive_filename}'"},
+    { must: "rm -r '#{archive_folder}'"},
+    { must: "chown root:root /usr/local/bin/gemserv" },
+    { must: "chown gemserv:gemserv /usr/local/etc/gemserv.conf" },
+]

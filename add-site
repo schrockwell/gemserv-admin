@@ -1,0 +1,90 @@
+#! /usr/bin/env ruby
+
+require 'toml-rb'
+require_relative 'lib/common'
+
+conf_path = '/usr/local/etc/gemserv.conf'
+usage = "Usage: ./add-site [hostname]"
+hostname = ARGV[0]
+
+unless hostname
+    puts usage
+    exit 1
+end
+
+username = hostname.gsub('.', '_')
+home_dir = "/home/#{username}"
+
+print "Creating #{username} user... "
+
+run_all [
+    { may: "adduser --disabled-password --shell /bin/bash --gecos \"#{hostname}\" #{username}" },
+    { must: "mkdir -p #{home_dir}/.ssh" },
+    { must: "touch #{home_dir}/.ssh/authorized_keys" },
+]
+
+puts 'done'
+
+print "Adding #{hostname} to gemserv config... "
+
+conf = TomlRB.load_file(conf_path)
+
+servers = (conf["server"] || []).delete_if { |s| s['hostname'] == hostname }
+
+servers << {
+    "hostname" => "#{hostname}",
+    "dir" => "#{home_dir}/public",
+    "key" => "#{home_dir}/certs/key.rsa",
+    "cert" => "#{home_dir}/certs/cert.pem",
+    "index" => "index.gmi",
+}
+
+conf["server"] = servers
+
+File.write(conf_path, TomlRB.dump(conf))
+
+puts "done"
+
+print "Setting up directories and certificates…"
+
+run_all [
+    { must: "mkdir -p #{home_dir}/certs" },
+    { must: "mkdir -p #{home_dir}/public" },
+]
+
+unless File.exist?("#{home_dir}/public/index.gmi")
+    run_all [
+        { must: "cp etc/index.gmi #{home_dir}/public/index.gmi" },
+    ]
+end
+
+unless File.exist?("#{home_dir}/certs/cert.pem")
+    Dir.chdir("#{home_dir}/certs") do
+        run_all [
+            { must: "cp etc/domain.cnf #{home_dir}/certs/domain.cnf" },
+        ]
+
+        File.write('domain.cnf', File.read('domain.cnf').gsub('{HOSTNAME}', hostname))
+
+        run_all [
+            { must: 'openssl req -new -x509	-nodes -keyout key.rsa -days 3650 -out cert.pem -config domain.cnf'}
+        ]
+    end
+end
+
+run_all [
+    { must: "chown -R #{username}:#{username} #{home_dir}"},
+    { must: "chmod 700 #{home_dir}/certs" },
+    { must: "chmod 600 #{home_dir}/certs/*" },
+]
+
+puts "done"
+
+print "Restarting gemserv..."
+
+run_all [
+    { must: 'systemctl daemon-reload' },
+    { must: 'systemctl restart gemserv' }
+]
+
+puts "done"

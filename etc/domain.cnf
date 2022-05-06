@@ -1,0 +1,21 @@
+[req]
+default_bits = 4096
+prompt = no
+default_md = sha256
+x509_extensions = v3_req
+distinguished_name = dn
+
+[dn]
+C = US
+ST = MyState
+L = MyTown
+O = MyOrg
+emailAddress = foo@example.com
+CN = {HOSTNAME}
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = {HOSTNAME}
+DNS.2 = *.{HOSTNAME}
