@@ -50,6 +50,7 @@ print "Setting up directories and certificates…"
 run_all [
     { must: "mkdir -p #{home_dir}/certs" },
     { must: "mkdir -p #{home_dir}/public" },
+    { must: "cp etc/domain.cnf #{home_dir}/certs/domain.cnf" },
 ]
 
 unless File.exist?("#{home_dir}/public/index.gmi")
@@ -60,10 +61,6 @@ end
 
 unless File.exist?("#{home_dir}/certs/cert.pem")
     Dir.chdir("#{home_dir}/certs") do
-        run_all [
-            { must: "cp etc/domain.cnf #{home_dir}/certs/domain.cnf" },
-        ]
-
         File.write('domain.cnf', File.read('domain.cnf').gsub('{HOSTNAME}', hostname))
 
         run_all [
@@ -87,4 +84,11 @@ run_all [
     { must: 'systemctl restart gemserv' }
 ]
 
+my_ip = `curl icanhazip.com`.strip
+
 puts "done"
+puts
+puts '--- NEXT STEPS ---'
+puts "- Put the user's public SSH key into #{home_dir}/.ssh/authorized_keys"
+puts "- Create a DNS A record for #{hostname} to #{my_ip}"
+puts "- Browse gemini://#{hostname}"
